@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>蒋寒狄 - 微信二维码名片导出工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入轻量级底层二维码矩阵算法库，确保100%真实可扫且支持微信圆点像素风格绘制 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", "Inter", sans-serif;
+      background-color: #f3f4f6;
+    }
+    .card-shadow {
+      box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center py-6 px-4 text-gray-800">
+
+  <!-- 顶部提示与全功能控制面板（直接展示三大修改项） -->
+  <div class="w-full max-w-md bg-white rounded-2xl p-5 mb-6 card-shadow border border-gray-100">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center space-x-2">
+        <span class="inline-block w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+        <h1 class="text-base font-semibold text-gray-900">微信名片二维码生成器（真实可扫）</h1>
+      </div>
+      <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-medium">Level H 最高容错</span>
+    </div>
+
+    <div class="space-y-4">
+      <!-- 1. 更换头像 -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-700 mb-1.5">1. 更换微信头像</label>
+        <div class="flex items-center space-x-3">
+          <img id="miniAvatarPreview" alt="当前头像" class="w-11 h-11 rounded-lg object-cover border border-gray-200 shrink-0 bg-gray-100" />
+          <label for="avatarInput" class="cursor-pointer flex-1 flex items-center justify-center space-x-2 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.99] text-indigo-700 font-medium py-2.5 px-4 rounded-xl transition border border-indigo-200 text-sm text-center">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            <span>点击选择相册图片换头像</span>
+          </label>
+          <input type="file" id="avatarInput" accept="image/*" class="hidden">
+        </div>
+      </div>
+
+      <!-- 2. 修改微信昵称 -->
+      <div>
+        <label for="nicknameInput" class="block text-xs font-semibold text-gray-700 mb-1.5">2. 修改微信昵称</label>
+        <div class="relative">
+          <input type="text" id="nicknameInput" value="蒋寒狄" placeholder="请输入你想显示的微信名称" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition">
+        </div>
+      </div>
+
+      <!-- 3. 修改二维码跳转链接 -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label for="urlInput" class="block text-xs font-semibold text-gray-700">3. 修改扫描跳转链接 (URL)</label>
+          <button type="button" id="clearUrlBtn" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">清空重写</button>
+        </div>
+        <input type="text" id="urlInput" value="https://order.kfc.com.cn/preorder-taro/home?portalSource=BrandWap&utm_source=BrandWap" placeholder="输入 https:// 开头网址或小程序底层链接" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition">
+        <p class="mt-1.5 text-[11px] text-gray-400">
+          支持任意网址或解码出的微信小程序链接，修改后下方二维码会自动实时重绘。
+        </p>
+      </div>
+
+      <!-- 下载按钮 -->
+      <div class="pt-1">
+        <button id="downloadBtn" class="w-full flex items-center justify-center space-x-2 bg-[#07C160] hover:bg-[#06ad56] active:scale-[0.99] text-white font-semibold py-3 px-4 rounded-xl transition shadow-sm text-sm">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          <span>一键下载高清名片 (.png)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示条 -->
+  <div id="statusToast" class="hidden mb-4 px-4 py-2 bg-gray-900 text-white text-xs rounded-full shadow-lg transition-all">
+    已成功触发图片下载！手机端也可直接长按下方名片图片保存到相册。
+  </div>
+
+  <!-- 真实生成的名片图片预览区（同时支持长按保存/右键另存为） -->
+  <div class="w-full max-w-[360px] flex flex-col items-center">
+    <div class="relative w-full rounded-xl overflow-hidden card-shadow bg-white border border-gray-100">
+      <!-- 隐藏的高清绘制画布 (1080 x 1360 分辨率) -->
+      <canvas id="cardCanvas" width="1080" height="1360" class="hidden"></canvas>
+      <!-- 同步渲染出的真实 <img> 标签，方便手机端直接长按保存图片 -->
+      <img id="exportedImage" alt="蒋寒狄 微信二维码名片" class="w-full h-auto block select-none" />
+    </div>
+    <p class="mt-3 text-xs text-gray-500 text-center leading-relaxed">
+      💡 <strong>手机保存最快方式：</strong>直接在上方生成的名片大图上<strong>长按图片 → 保存到相册</strong>即可。
+    </p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('cardCanvas');
+    const ctx = canvas.getContext('2d');
+    const exportedImage = document.getElementById('exportedImage');
+    const miniAvatarPreview = document.getElementById('miniAvatarPreview');
+    const nicknameInput = document.getElementById('nicknameInput');
+    const urlInput = document.getElementById('urlInput');
+    const clearUrlBtn = document.getElementById('clearUrlBtn');
+    const avatarInput = document.getElementById('avatarInput');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusToast = document.getElementById('statusToast');
+
+    // 当前头像 Image 对象
+    let currentAvatarImg = null;
+
+    // 创建一个默认的高颜值暗黑蓝发风格矢量头像（致敬用户上传的蓝发二次元头像风格，开箱即用）
+    function createDefaultBlueAnimeAvatar() {
+      const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+        <defs>
+          <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#060913"/>
+            <stop offset="50%" stop-color="#0f172a"/>
+            <stop offset="100%" stop-color="#050811"/>
+          </linearGradient>
+          <linearGradient id="hairGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1e3a8a"/>
+            <stop offset="45%" stop-color="#1d4ed8"/>
+            <stop offset="100%" stop-color="#090d16"/>
+          </linearGradient>
+          <linearGradient id="hairHighlight" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0"/>
+            <stop offset="50%" stop-color="#60a5fa" stop-opacity="0.75"/>
+            <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- 深色背景 -->
+        <rect width="240" height="240" fill="url(#bgGrad)"/>
+        <!-- 后发 -->
+        <path d="M25,240 C20,120 45,20 120,15 C195,20 220,120 215,240 Z" fill="url(#hairGrad)"/>
+        <!-- 黑色哥特领口与红黑宝石装饰 -->
+        <path d="M65,240 L95,180 L145,180 L175,240 Z" fill="#111827"/>
+        <!-- 脸部轮廓（冷白皮） -->
+        <path d="M72,95 C72,150 96,178 120,185 C144,178 168,150 168,95 Z" fill="#f1f5f9"/>
+        <!-- 阴影 -->
+        <path d="M75,110 C85,135 110,145 120,185 C96,178 74,148 75,110 Z" fill="#cbd5e1" opacity="0.45"/>
+        <!-- 右眼（金色微光动漫眼） -->
+        <path d="M132,124 Q150,115 164,122 Q152,132 132,127 Z" fill="#0f172a"/>
+        <ellipse cx="147" cy="123" rx="6" ry="4" fill="#fde047"/>
+        <circle cx="147" cy="123" r="2.2" fill="#0f172a"/>
+        <circle cx="144" cy="121" r="1.5" fill="#ffffff"/>
+        <!-- 微笑唇线 -->
+        <path d="M112,162 Q122,166 131,159" stroke="#334155" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- 蓝发刘海层次 -->
+        <path d="M50,60 C65,130 85,155 95,165 C88,125 92,95 102,75 C104,115 115,138 124,148 C126,115 130,90 138,72 C142,108 152,125 162,135 C165,105 168,80 185,60 Z" fill="url(#hairGrad)"/>
+        <!-- 天使光环高光 -->
+        <path d="M62,72 Q120,90 178,72 Q120,82 62,72 Z" fill="url(#hairHighlight)"/>
+        <!-- 颈部红芯装饰 -->
+        <circle cx="122" cy="196" r="10" fill="#dc2626" stroke="#090d16" stroke-width="3"/>
+        <circle cx="122" cy="196" r="5" fill="#ffffff"/>
+        <circle cx="122" cy="196" r="2.2" fill="#090d16"/>
+        <!-- 左侧银色十字耳饰光效 -->
+        <g stroke="#e2e8f0" stroke-width="2" opacity="0.9">
+          <line x1="45" y1="135" x2="45" y2="205"/>
+          <line x1="30" y1="155" x2="60" y2="155"/>
+          <line x1="65" y1="150" x2="65" y2="225"/>
+          <line x1="50" y1="172" x2="80" y2="172"/>
+        </g>
+      </svg>`;
+      const img = new Image();
+      img.onload = () => {
+        currentAvatarImg = img;
+        miniAvatarPreview.src = img.src;
+        renderCard();
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+    }
+
+    // 绘制圆角矩形辅助函数
+    function drawRoundedRect(ctx, x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    }
+
+    // 判断某个模块是否属于三个角落的定位图案 (7x7 区域)
+    function isFinderPattern(row, col, count) {
+      if (row < 7 && col < 7) return true; // 左上
+      if (row < 7 && col >= count - 7) return true; // 右上
+      if (row >= count - 7 && col < 7) return true; // 左下
+      return false;
+    }
+
+    // 判断某个模块是否处于中心微信图标遮挡区，避免杂乱像素露出边缘
+    function isCenterLogoZone(row, col, count) {
+      const center = count / 2;
+      const halfSpan = count * 0.11;
+      return Math.abs(row - center + 0.5) < halfSpan && Math.abs(col - center + 0.5) < halfSpan;
+    }
+
+    // 绘制微信风格的圆角回字定位框 (Finder Pattern)
+    function drawWeChatFinderPattern(ctx, startX, startY, cellSize) {
+      const outerSize = 7 * cellSize;
+      const midSize = 5 * cellSize;
+      const innerSize = 3 * cellSize;
+
+      ctx.fillStyle = '#111111';
+      drawRoundedRect(ctx, startX, startY, outerSize, outerSize, cellSize * 1.15);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      drawRoundedRect(ctx, startX + cellSize, startY + cellSize, midSize, midSize, cellSize * 0.65);
+      ctx.fill();
+
+      ctx.fillStyle = '#111111';
+      drawRoundedRect(ctx, startX + 2 * cellSize, startY + 2 * cellSize, innerSize, innerSize, cellSize * 0.45);
+      ctx.fill();
+    }
+
+    // 绘制中间黑色圆角正方形与白色微信气泡图标
+    function drawCenterWeChatBadge(ctx, centerX, centerY, badgeSize) {
+      const half = badgeSize / 2;
+      const x = centerX - half;
+      const y = centerY - half;
+
+      // 白色外描边底衬
+      ctx.fillStyle = '#ffffff';
+      drawRoundedRect(ctx, x - 8, y - 8, badgeSize + 16, badgeSize + 16, 28);
+      ctx.fill();
+
+      // 黑色圆角方框（还原用户原图里的黑底白标样式）
+      ctx.fillStyle = '#141414';
+      drawRoundedRect(ctx, x, y, badgeSize, badgeSize, 22);
+      ctx.fill();
+
+      // 绘制两个叠加的微信对话气泡
+      ctx.fillStyle = '#ffffff';
+
+      // 左上大气泡
+      const b1X = centerX - badgeSize * 0.08;
+      const b1Y = centerY - badgeSize * 0.06;
+      const b1Rx = badgeSize * 0.23;
+      const b1Ry = badgeSize * 0.19;
+
+      ctx.beginPath();
+      ctx.ellipse(b1X, b1Y, b1Rx, b1Ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 左下小尖角
+      ctx.beginPath();
+      ctx.moveTo(b1X - b1Rx * 0.65, b1Y + b1Ry * 0.55);
+      ctx.lineTo(b1X - b1Rx * 0.92, b1Y + b1Ry * 1.08);
+      ctx.lineTo(b1X - b1Rx * 0.2, b1Y + b1Ry * 0.85);
+      ctx.closePath();
+      ctx.fill();
+
+      // 右下小气泡（带黑色描边分隔感）
+      const b2X = centerX + badgeSize * 0.14;
+      const b2Y = centerY + badgeSize * 0.11;
+      const b2Rx = badgeSize * 0.19;
+      const b2Ry = badgeSize * 0.155;
+
+      // 先画一圈深色分割线
+      ctx.fillStyle = '#141414';
+      ctx.beginPath();
+      ctx.ellipse(b2X, b2Y, b2Rx + 3.5, b2Ry + 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 再画白色小气泡本体
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(b2X, b2Y, b2Rx, b2Ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 右下小尖角
+      ctx.beginPath();
+      ctx.moveTo(b2X + b2Rx * 0.6, b2Y + b2Ry * 0.5);
+      ctx.lineTo(b2X + b2Rx * 0.9, b2Y + b2Ry * 1.1);
+      ctx.lineTo(b2X + b2Rx * 0.15, b2Y + b2Ry * 0.85);
+      ctx.closePath();
+      ctx.fill();
+
+      // 绘制气泡上的眼睛黑点
+      ctx.fillStyle = '#141414';
+      // 大气泡双眼
+      ctx.beginPath();
+      ctx.arc(b1X - b1Rx * 0.32, b1Y - b1Ry * 0.15, badgeSize * 0.024, 0, Math.PI * 2);
+      ctx.arc(b1X + b1Rx * 0.28, b1Y - b1Ry * 0.15, badgeSize * 0.024, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 小气泡双眼
+      ctx.beginPath();
+      ctx.arc(b2X - b2Rx * 0.3, b2Y - b2Ry * 0.12, badgeSize * 0.02, 0, Math.PI * 2);
+      ctx.arc(b2X + b2Rx * 0.3, b2Y - b2Ry * 0.12, badgeSize * 0.02, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 主绘制函数：将整张名片渲染在 1080x1360 高清画布上，严格对齐不重叠
+    function renderCard() {
+      const W = canvas.width;   // 1080
+      const H = canvas.height;  // 1360
+      const nickname = nicknameInput.value.trim() || '蒋寒狄';
+      const targetUrl = urlInput.value.trim() || 'https://order.kfc.com.cn/preorder-taro/home?portalSource=BrandWap&utm_source=BrandWap';
+
+      // 重置全局绘图状态，防止 textAlign 污染导致文字偏移被头像遮挡
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+
+      // 1. 纯白背景
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+
+      // 布局基准参数：二维码区域宽 760，左右边距各 160，顶部头像左边缘与二维码左边缘严格对齐
+      const qrAreaSize = 760;
+      const qrStartX = (W - qrAreaSize) / 2; // 160
+      const qrStartY = 380;
+
+      const headerX = qrStartX; // 160
+      const headerY = 150;
+      const avatarSize = 168;
+
+      // 2. 绘制顶部圆角头像（严格裁剪在 [160, 150, 168, 168] 框内，绝不越界遮挡文字）
+      if (currentAvatarImg) {
+        ctx.save();
+        drawRoundedRect(ctx, headerX, headerY, avatarSize, avatarSize, 22);
+        ctx.clip();
+        const imgW = currentAvatarImg.width || 240;
+        const imgH = currentAvatarImg.height || 240;
+        const scale = Math.max(avatarSize / imgW, avatarSize / imgH);
+        const drawW = imgW * scale;
+        const drawH = imgH * scale;
+        const dx = headerX + (avatarSize - drawW) / 2;
+        const dy = headerY + (avatarSize - drawH) / 2;
+        ctx.drawImage(currentAvatarImg, dx, dy, drawW, drawH);
+        ctx.restore();
+      }
+
+      // 3. 绘制微信昵称（严格左对齐，起始 X = 160 + 168 + 44 = 372，与头像保持 44px 清晰间距）
+      ctx.save();
+      ctx.fillStyle = '#191919';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '500 58px -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif';
+      const nameX = headerX + avatarSize + 44; // 372
+      const nameY = headerY + avatarSize / 2;  // 234
+      const maxNameWidth = W - nameX - 120;    // 防止超长昵称溢出右边界
+      ctx.fillText(nickname, nameX, nameY, maxNameWidth);
+      ctx.restore();
+
+      // 4. 生成真实的二维码数据矩阵
+      try {
+        const qr = qrcode(0, 'H'); // TypeNumber 0 自动匹配，'H' 30%最高容错率
+        qr.addData(targetUrl);
+        qr.make();
+
+        const moduleCount = qr.getModuleCount();
+        const cellSize = qrAreaSize / moduleCount;
+
+        // 绘制普通圆角小方块像素点（复刻微信二维码质感）
+        ctx.fillStyle = '#141414';
+        for (let r = 0; r < moduleCount; r++) {
+          for (let c = 0; c < moduleCount; c++) {
+            if (isFinderPattern(r, c, moduleCount) || isCenterLogoZone(r, c, moduleCount)) {
+              continue;
+            }
+            if (qr.isDark(r, c)) {
+              const x = qrStartX + c * cellSize;
+              const y = qrStartY + r * cellSize;
+              const dotPadding = cellSize * 0.06;
+              const dotSize = cellSize - dotPadding * 2;
+              drawRoundedRect(ctx, x + dotPadding, y + dotPadding, dotSize, dotSize, dotSize * 0.25);
+              ctx.fill();
+            }
+          }
+        }
+
+        // 绘制三个角落的回字定位框
+        drawWeChatFinderPattern(ctx, qrStartX, qrStartY, cellSize);
+        drawWeChatFinderPattern(ctx, qrStartX + (moduleCount - 7) * cellSize, qrStartY, cellSize);
+        drawWeChatFinderPattern(ctx, qrStartX, qrStartY + (moduleCount - 7) * cellSize, cellSize);
+
+        // 绘制中心微信 Logo
+        drawCenterWeChatBadge(ctx, qrStartX + qrAreaSize / 2, qrStartY + qrAreaSize / 2, 146);
+
+      } catch (err) {
+        console.error('QR Code generation error:', err);
+      }
+
+      // 5. 底部灰色引导文案：“扫一扫上面的二维码图案，加我为朋友。”
+      ctx.save();
+      ctx.fillStyle = '#a3a3a3';
+      ctx.font = '400 36px -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('扫一扫上面的二维码图案，加我为朋友。', W / 2, 1255);
+      ctx.restore();
+
+      ctx.restore();
+
+      // 6. 将画布实时同步为 <img> DataURL，支持直接长按或右键保存
+      exportedImage.src = canvas.toDataURL('image/png');
+    }
+
+    // 处理用户上传自定义头像文件
+    function handleAvatarFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          currentAvatarImg = img;
+          miniAvatarPreview.src = img.src;
+          renderCard();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    avatarInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleAvatarFile(e.target.files[0]);
+      }
+    });
+
+    // 支持直接拖拽图片到页面任意位置替换头像
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleAvatarFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // 支持 Ctrl+V 直接粘贴剪贴板里的头像图片
+    window.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (const item of items) {
+        if (item.type.indexOf('image') === 0) {
+          handleAvatarFile(item.getAsFile());
+          break;
+        }
+      }
+    });
+
+    // 监听昵称和网址改动
+    nicknameInput.addEventListener('input', renderCard);
+    urlInput.addEventListener('input', renderCard);
+
+    // 清空网址按钮
+    clearUrlBtn.addEventListener('click', () => {
+      urlInput.value = '';
+      urlInput.focus();
+      renderCard();
+    });
+
+    // 一键下载 PNG 文件到本地
+    downloadBtn.addEventListener('click', () => {
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      const cleanName = (nicknameInput.value.trim() || '蒋寒狄').replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
+      link.download = `${cleanName}_微信二维码名片.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      statusToast.classList.remove('hidden');
+      setTimeout(() => {
+        statusToast.classList.add('hidden');
+      }, 4000);
+    });
+
+    // 页面加载完成后立即初始化生成
+    window.onload = () => {
+      createDefaultBlueAnimeAvatar();
+    };
+  </script>
+</body>
+</html>
